@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+
+import matplotlib.pyplot as plt
+
 # creating a neural network model with no ML libraries just math training and testing the MNIST data
 train_data = pd.read_csv('train.csv')
 test_data = pd.read_csv('test.csv')
@@ -84,6 +87,20 @@ def gradient_descent(x, y, alpha, iterations):
 #_, _, _, a2_test = forward_prop(W1, b1, W2, b2, x_test)
 #predictions_test = get_predictions(a2_test)
 #print("Test Accuracy:", get_accuracy(predictions_test, y_test))
+
 print("Shape of x_train:", x_train.shape)
 print("Shape of x_test:", x_test.shape)
+
+
+def display_image_from_csv(csv_file, image_index):
+    data = pd.read_csv(csv_file)
+    image = data.iloc[image_index, 1:].values
+    label = data.iloc[image_index, 0]
+    image = image.reshape(28, 28)
+    plt.imshow(image, cmap='gray')
+    plt.title(f'Label: {label}')
+    plt.show()
+
+image_index = 20  
+display_image_from_csv('train.csv' , image_index)
 
