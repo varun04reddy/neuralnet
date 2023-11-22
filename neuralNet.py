@@ -1,99 +1,89 @@
 import numpy as np
 import pandas as pd
-import matplotlib as plt
+# creating a neural network model with no ML libraries just math training and testing the MNIST data
+train_data = pd.read_csv('train.csv')
+test_data = pd.read_csv('test.csv')
 
+y_train = train_data.iloc[:, 0].values
+x_train = train_data.iloc[:, 1:].values / 255.0 
 
+y_test = test_data.iloc[:, 0].values
+x_test = test_data.iloc[:, 1:].values / 255.0 
 
-data = pd.read_csv('train.csv')
+x_train = x_train.T
+x_test = x_test.T
 
-print(data.head)
-
-
-data = np.array(data)
-
-np.random.shuffle(data)
-
-m,n = data.shape
-
-dataDev = data[0:1000].T
-yDev = dataDev[0]
-xDev = dataDev[1:n]
-
-trainData = data[1000:m].T
-yTrain = trainData[0]
-xTrain = trainData[1:n]
-
-print(xTrain[:, 0].shape)
-
-def params():
-    w1 = np.random.randn(10, 784)
-    b1 = np.random.randn(10,1)
-    w2 = np.random.randn(10,10)
-    b2 = np.random.randn(10,1)
-
+def initialize_params():
+    w1 = np.random.randn(10, 784) * np.sqrt(1. / 784)
+    b1 = np.zeros((10, 1))
+    w2 = np.random.randn(10, 10) * np.sqrt(1. / 10)
+    b2 = np.zeros((10, 1))
     return w1, b1, w2, b2
 
-def reLu(z):
+def relu(z):
     return np.maximum(0, z)
 
-def softMax(z):
-    z -= np.max(z, axis=0)  # Subtracting the max for numerical stability
-    exp_scores = np.exp(z)
-    return exp_scores / np.sum(exp_scores, axis=0)
+def relu_deriv(z):
+    return z > 0
 
+def softmax(z):
+    z -= np.max(z, axis=0)
+    return np.exp(z) / np.sum(np.exp(z), axis=0)
 
-def forwardProp(w1, b1, w2, b2, x):
-    Z1 = w1.dot(x) + b1
-    A1 = reLu(Z1)
-    Z2 = w2.dot(A1) + b2
-    A2 = softMax(A1)
+# Forward propagation
+def forward_prop(w1, b1, w2, b2, x):
+    z1 = w1.dot(x) + b1
+    a1 = relu(z1)
+    z2 = w2.dot(a1) + b2
+    a2 = softmax(z2)
+    return z1, a1, z2, a2
 
-    return Z1, A1, Z2, A2
+def one_hot(y):
+    one_hot_y = np.zeros((y.max() + 1, y.size))
+    one_hot_y[y, np.arange(y.size)] = 1
+    return one_hot_y
 
-def one_hot(Y):
-    one_hot_Y = np.zeros((Y.size, Y.max() + 1))
-    one_hot_Y[np.arange(Y.size), Y] = 1
-    one_hot_Y = one_hot_Y.T
-    return one_hot_Y
+def backward_prop(z1, a1, z2, a2, w1, w2, x, y):
+    m = x.shape[1] 
 
-def backward_prop(Z1, A1, Z2, A2, W1, W2, X, Y):
-    one_hot_Y = one_hot(Y)
-    dZ2 = A2 - one_hot_Y
-    dW2 = 1 / m * dZ2.dot(A1.T)
-    db2 = 1 / m * np.sum(dZ2)
-    dZ1 = W2.T.dot(dZ2) * ReLU_deriv(Z1)
-    dW1 = 1 / m * dZ1.dot(X.T)
-    db1 = 1 / m * np.sum(dZ1)
+    one_hot_y = one_hot(y)
+    dZ2 = a2 - one_hot_y
+    dW2 = 1 / m * dZ2.dot(a1.T)
+    db2 = 1 / m * np.sum(dZ2, axis=1, keepdims=True)
+    dZ1 = w2.T.dot(dZ2) * relu_deriv(z1)
+    dW1 = 1 / m * dZ1.dot(x.T)
+    db1 = 1 / m * np.sum(dZ1, axis=1, keepdims=True)
     return dW1, db1, dW2, db2
 
-def ReLU_deriv(Z):
-    return Z > 0
+def update_params(w1, b1, w2, b2, dW1, db1, dW2, db2, alpha):
+    w1 -= alpha * dW1
+    b1 -= alpha * db1
+    w2 -= alpha * dW2
+    b2 -= alpha * db2
+    return w1, b1, w2, b2
 
-def update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha):
-    W1 = W1 - alpha * dW1
-    b1 = b1 - alpha * db1    
-    W2 = W2 - alpha * dW2  
-    b2 = b2 - alpha * db2    
-    return W1, b1, W2, b2
-def get_predictions(A2):
-    return np.argmax(A2, 0)
+def get_predictions(a2):
+    return np.argmax(a2, 0)
 
-def get_accuracy(predictions, Y):
-    print(predictions, Y)
-    return np.sum(predictions == Y) / Y.size
+def get_accuracy(predictions, y):
+    return np.sum(predictions == y) / y.size
 
-def gradient_descent(X, Y, alpha, iterations):
-    W1, b1, W2, b2 = params()
+def gradient_descent(x, y, alpha, iterations):
+    w1, b1, w2, b2 = initialize_params()
     for i in range(iterations):
-        Z1, A1, Z2, A2 = forwardProp(W1, b1, W2, b2, X)
-        dW1, db1, dW2, db2 = backward_prop(Z1, A1, Z2, A2, W1, W2, X, Y)
-        W1, b1, W2, b2 = update_params(W1, b1, W2, b2, dW1, db1, dW2, db2, alpha)
+        z1, a1, z2, a2 = forward_prop(w1, b1, w2, b2, x)
+        dW1, db1, dW2, db2 = backward_prop(z1, a1, z2, a2, w1, w2, x, y)
+        w1, b1, w2, b2 = update_params(w1, b1, w2, b2, dW1, db1, dW2, db2, alpha)
         if i % 10 == 0:
-            print("Iteration: ", i)
-            predictions = get_predictions(A2)
-            print(get_accuracy(predictions, Y))
-    return W1, b1, W2, b2
+            predictions = get_predictions(a2)
+            print("Iteration:", i, "Accuracy:", get_accuracy(predictions, y))
+    return w1, b1, w2, b2
 
+#W1, b1, W2, b2 = gradient_descent(x_train, y_train, 0.1, 500)
 
-W1, b1, W2, b2 = gradient_descent(xTrain, yTrain, 0.10, 500)
+#_, _, _, a2_test = forward_prop(W1, b1, W2, b2, x_test)
+#predictions_test = get_predictions(a2_test)
+#print("Test Accuracy:", get_accuracy(predictions_test, y_test))
+print("Shape of x_train:", x_train.shape)
+print("Shape of x_test:", x_test.shape)
 
